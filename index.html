@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An easygoing, food-focused walking tour of San Francisco's Mission District, with historic architecture, public art, curiosities, and taco stops.">
+<meta name="theme-color" content="#f4efe6">
+<title>San Francisco: Mission District Walking Tour</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fog: #F4EFE6;
+    --panel: #FCFAF6;
+    --ink: #2D2925;
+    --muted: #766A5C;
+    --line: #DFD5C5;
+    --route: #B85D3C;
+    --food: #C58A25;
+    --focus: #286C78;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fog: #18211D;
+      --panel: #202B25;
+      --ink: #F1ECE2;
+      --muted: #B8B0A2;
+      --line: #39463E;
+      --route: #E38B68;
+      --food: #E4B14C;
+      --focus: #77BDCA;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--fog);
+    color: var(--ink);
+    font: 400 15px/1.5 "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid;
+    grid-template-columns: minmax(310px, 390px) 1fr;
+    grid-template-areas: "sidebar map";
+    height: 100%;
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  aside {
+    grid-area: sidebar;
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    padding: 28px 24px 34px;
+  }
+  .eyebrow {
+    color: var(--route);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    margin: 0 0 9px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font: 400 2.15rem/1.04 "Young Serif", Georgia, serif;
+    letter-spacing: -0.015em;
+    margin: 0 0 11px;
+  }
+  .lede { color: var(--muted); margin: 0 0 18px; max-width: 36ch; }
+  .quick-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+  .fact {
+    background: var(--fog);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    min-width: 0;
+    padding: 9px 8px 8px;
+  }
+  .fact strong, .fact span { display: block; }
+  .fact strong { font-size: 0.95rem; line-height: 1.2; white-space: nowrap; }
+  .fact span { color: var(--muted); font-size: 0.73rem; line-height: 1.25; margin-top: 4px; }
+  .directions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--panel);
+    background: var(--ink);
+    border-radius: 8px;
+    font-weight: 600;
+    margin: 0 0 21px;
+    padding: 10px 13px;
+    text-decoration: none;
+  }
+  .directions:hover { background: var(--route); }
+  .directions:focus-visible, .chip:focus-visible, .item:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 13px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: transparent;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    cursor: pointer;
+    font: 500 0.88rem "Figtree", system-ui, sans-serif;
+    padding: 6px 12px;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--ink); }
+  .chip[aria-pressed="false"] { opacity: 0.48; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .dot.walk { background: var(--route); }
+  .dot.food { background: var(--food); }
+  .search {
+    width: 100%;
+    font: 400 0.95rem "Figtree", system-ui, sans-serif;
+    color: var(--ink);
+    background: transparent;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+  }
+  .search:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .search::placeholder { color: var(--muted); }
+  .stop-group h2 {
+    font: 400 1.25rem "Young Serif", Georgia, serif;
+    margin: 22px 0 2px;
+  }
+  .region-note { color: var(--muted); font-size: 0.86rem; margin: 0 0 7px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  .item {
+    align-items: start;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--line);
+    color: inherit;
+    cursor: pointer;
+    display: grid;
+    font: inherit;
+    gap: 0 10px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 11px 2px 12px;
+    text-align: left;
+    width: 100%;
+  }
+  .item:hover .name { color: var(--route); }
+  .item-marker {
+    align-items: center;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 600;
+    height: 27px;
+    justify-content: center;
+    margin-top: 1px;
+    width: 27px;
+  }
+  .item-marker.walk { background: var(--route); }
+  .item-marker.food { background: var(--food); color: #241D13; }
+  .item-copy { min-width: 0; }
+  .item-heading { align-items: baseline; display: flex; gap: 7px; justify-content: space-between; }
+  .name { font-weight: 600; line-height: 1.3; }
+  .dist { color: var(--muted); flex: none; font-size: 0.78rem; white-space: nowrap; }
+  .address { color: var(--muted); display: block; font-size: 0.79rem; margin-top: 2px; }
+  .blurb { color: var(--muted); display: block; font-size: 0.88rem; line-height: 1.4; margin-top: 5px; }
+  .item[hidden], li[hidden], .stop-group[hidden] { display: none; }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 10px 2px; }
+  .extras { border-top: 1px solid var(--line); margin-top: 20px; }
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; font-weight: 600; list-style: none; padding: 11px 2px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--muted); float: right; font-size: 1.1rem; line-height: 1.2; }
+  details[open] summary::after { content: "−"; }
+  .detail-content { color: var(--muted); font-size: 0.88rem; padding: 0 2px 12px; }
+  .detail-content p { margin: 0 0 8px; }
+  .detail-content p:last-child { margin-bottom: 0; }
+  .schedule { display: grid; gap: 7px; grid-template-columns: 78px 1fr; margin: 0; }
+  .schedule dt { color: var(--ink); font-weight: 600; }
+  .schedule dd { margin: 0; }
+  footer { color: var(--muted); font-size: 0.78rem; line-height: 1.45; margin-top: 20px; }
+  #map { grid-area: map; height: 100%; min-height: 0; width: 100%; }
+  .leaflet-container { background: var(--fog); font: 400 14px/1.45 "Figtree", system-ui, sans-serif; }
+  .map-pin-icon { background: none; border: 0; }
+  .pin {
+    align-items: center;
+    border: 3px solid var(--panel);
+    border-radius: 50%;
+    box-shadow: 0 1px 5px #0005;
+    color: #fff;
+    display: flex;
+    font: 600 0.86rem/1 "Figtree", system-ui, sans-serif;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+  }
+  .pin.walk { background: var(--route); }
+  .pin.food { background: var(--food); color: #241D13; }
+  .leaflet-popup-content { margin: 12px 14px; min-width: 180px; }
+  .leaflet-popup-content strong { font-size: 15px; }
+  .leaflet-popup-content a { color: var(--route); font-weight: 600; }
+  .popup-address { color: var(--muted); font-size: 0.86rem; }
+  .map-legend {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 1px 6px #0002;
+    color: var(--ink);
+    font: 500 0.78rem/1.4 "Figtree", system-ui, sans-serif;
+    padding: 8px 10px;
+  }
+  .legend-row { align-items: center; display: flex; gap: 7px; white-space: nowrap; }
+  .legend-row + .legend-row { margin-top: 4px; }
+  .legend-line { border-top: 3px solid var(--route); border-radius: 3px; height: 0; width: 17px; }
+  .legend-dot { border: 1px solid var(--panel); border-radius: 50%; box-shadow: 0 0 0 1px var(--line); height: 10px; width: 10px; }
+  .legend-dot.walk { background: var(--route); }
+  .legend-dot.food { background: var(--food); }
+
+  @media (max-width: 760px) {
+    body {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(320px, 52vh) auto;
+      grid-template-areas: "map" "sidebar";
+      height: auto;
+      min-height: 100%;
+    }
+    #map { height: 52vh; min-height: 320px; max-height: 560px; position: sticky; top: 0; z-index: 1; }
+    aside { border-bottom: 0; border-right: 0; border-top: 1px solid var(--line); overflow: visible; padding: 24px 22px 34px; }
+  }
+  @media (max-width: 390px) {
+    aside { padding-left: 17px; padding-right: 17px; }
+    .fact { padding-left: 6px; padding-right: 6px; }
+    .fact strong { font-size: 0.87rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<aside aria-labelledby="page-title">
+  <p class="eyebrow">San Francisco · Mission District</p>
+  <h1 id="page-title">A day in the Mission</h1>
+  <p class="lede">A relaxed, food-focused walk through old San Francisco, mural-filled lanes, and a cabinet of curiosities—with tacos if you're hungry. Tap any stop to find it on the map.</p>
+
+  <div class="quick-facts" aria-label="Tour overview">
+    <div class="fact"><strong>2.5–3 hrs</strong><span>plus food & browsing</span></div>
+    <div class="fact"><strong>2–3 miles</strong><span>before extensions</span></div>
+    <div class="fact"><strong>10:00 AM</strong><span>easygoing start</span></div>
+  </div>
+
+  <a id="route-directions" class="directions" href="#" target="_blank" rel="noopener">Open walking directions <span aria-hidden="true">↗</span></a>
+
+  <div class="filters" role="group" aria-label="Show on map">
+    <button class="chip" data-cat="walk" aria-pressed="true"><span class="dot walk"></span>Tour stops</button>
+    <button class="chip" data-cat="food" aria-pressed="true"><span class="dot food"></span>Food options</button>
+  </div>
+
+  <input id="search" class="search" type="search" placeholder="Search the stops..." aria-label="Search tour stops and food options">
+
+  <div id="lists"></div>
+  <p id="empty" class="empty" hidden>No stops match that search.</p>
+
+  <section class="extras" aria-label="More tour details">
+    <details>
+      <summary>Suggested schedule</summary>
+      <div class="detail-content">
+        <dl class="schedule">
+          <dt>10:00 AM</dt><dd>Mission Dolores and its gardens</dd>
+          <dt>10:45 AM</dt><dd>Dolores Park and the views</dd>
+          <dt>11:15 AM</dt><dd>Walk toward the Women's Building mural</dd>
+          <dt>11:45 AM</dt><dd>Explore Clarion Alley</dd>
+          <dt>12:15 PM</dt><dd>Browse Paxton Gate</dd>
+          <dt>12:45 PM on</dt><dd>Tacos, Valencia Street browsing, and unplanned discoveries</dd>
+        </dl>
+      </div>
+    </details>
+    <details>
+      <summary>If time is short</summary>
+      <div class="detail-content">
+        <p>Prioritize <strong>Mission Dolores</strong> for history and architecture, <strong>Clarion Alley</strong> for public art, and <strong>Paxton Gate</strong> for curiosities.</p>
+      </div>
+    </details>
+    <details>
+      <summary>Optional southward extension</summary>
+      <div class="detail-content">
+        <p>If you still have energy after lunch, continue toward 24th Street for more murals, Latino-owned businesses, and neighborhood food stops. Keep it flexible rather than turning the day into a checklist.</p>
+      </div>
+    </details>
+  </section>
+
+  <footer>The Old Mission has been listed as open weekdays from 10:00 AM to 4:00 PM; verify current hours before setting out. Check Paxton Gate's hours and the food truck's location, too. The route and pins are approximate—use the directions link for current walking directions. Some gentle hills; take your time and be mindful that the mural alleys are residential.</footer>
+</aside>
+<div id="map" role="region" aria-label="Interactive map of the Mission District walking tour"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const PLACES = [
+  {
+    group: "tour", cat: "walk", order: 1, id: "mission-dolores", name: "Mission Dolores",
+    lat: 37.764353, lng: -122.4269535, address: "3321 16th Street",
+    q: "Mission Dolores, 3321 16th Street, San Francisco, CA",
+    duration: "30–40 min",
+    blurb: "San Francisco's oldest surviving building, founded in 1776. Visit the adobe chapel, cemetery, and garden for a glimpse of the city's early history."
+  },
+  {
+    group: "tour", cat: "walk", order: 2, id: "dolores-park", name: "Dolores Park",
+    lat: 37.7596522, lng: -122.4260821, address: "Dolores Street & 19th Street",
+    q: "Mission Dolores Park, Dolores Street and 19th Street, San Francisco, CA",
+    duration: "15–20 min",
+    blurb: "Pause for skyline views, palm trees, and people-watching. Treat it as a scenic break rather than a long stop."
+  },
+  {
+    group: "tour", cat: "walk", order: 3, id: "womens-building", name: "The Women's Building",
+    lat: 37.7614267, lng: -122.4226102, address: "3543 18th Street · MaestraPeace mural",
+    q: "The Women's Building, 3543 18th Street, San Francisco, CA",
+    duration: "About 10 min",
+    blurb: "See MaestraPeace, the colorful mural covering the exterior of this women-led community center."
+  },
+  {
+    group: "tour", cat: "walk", order: 4, id: "clarion-alley", name: "Clarion Alley",
+    lat: 37.7629853, lng: -122.4206648, address: "Between Mission & Valencia · 17th–18th Streets",
+    q: "Clarion Alley, San Francisco, CA",
+    duration: "15–25 min",
+    blurb: "Explore an outdoor gallery of changing murals about social issues, identity, and neighborhood change. Notice the small details and be mindful of nearby residents."
+  },
+  {
+    group: "tour", cat: "walk", order: 5, id: "paxton-gate", name: "Paxton Gate",
+    lat: 37.7596367, lng: -122.4216659, address: "824 Valencia Street",
+    q: "Paxton Gate, 824 Valencia Street, San Francisco, CA",
+    duration: "20–30 min",
+    blurb: "A cabinet of curiosities filled with natural-history specimens, fossils, minerals, insects, and unusual objects. Check today's opening time before visiting."
+  },
+  {
+    group: "food", cat: "food", id: "el-farolito", name: "El Farolito",
+    lat: 37.752651, lng: -122.418221, address: "2779 Mission Street",
+    q: "El Farolito, 2779 Mission Street, San Francisco, CA",
+    duration: "Optional taco stop",
+    blurb: "A no-frills Mission favorite for tacos and Mission-style burritos. Tacos are a good pick if you'd rather graze than have a big meal."
+  },
+  {
+    group: "food", cat: "food", id: "el-gallo-giro", name: "El Gallo Giro Food Truck",
+    lat: 37.7544479, lng: -122.4132719, address: "23rd Street & Treat Avenue",
+    q: "El Gallo Giro Food Truck, 23rd Street and Treat Avenue, San Francisco, CA",
+    duration: "Optional taco stop",
+    blurb: "A casual truck known for tacos such as carnitas and al pastor. It's farther south, so check its current location and hours before heading over."
+  }
+];
+
+const REGIONS = [
+  { id: "tour", title: "The walk", note: "Five easygoing stops, in walking order." },
+  { id: "food", title: "Optional food stops", note: "Choose one based on your appetite and where you want to end the walk." }
+];
+
+// An illustrative street-by-street path; use the directions link for current routing.
+const ROUTE = [
+  [37.764353, -122.4269535], // Mission Dolores
+  [37.7629, -122.42695],     // south on Dolores Street
+  [37.76143, -122.42695],    // Dolores Street at 18th
+  [37.7596522, -122.4260821],// into Dolores Park
+  [37.76143, -122.42695],    // back to 18th Street
+  [37.7614267, -122.4226102],// east to The Women's Building
+  [37.76143, -122.4217],     // Valencia Street
+  [37.7629853, -122.4217],  // north to Clarion Alley
+  [37.7629853, -122.4196145],// east through Clarion Alley
+  [37.76143, -122.4196145], // south on Mission Street
+  [37.76143, -122.4217],    // west on 18th Street
+  [37.7596367, -122.4216659]// south on Valencia Street to Paxton Gate
+];
+
+function esc(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+const map = L.map("map", { scrollWheelZoom: true, zoomControl: true }).setView([37.762, -122.422], 15);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+const routeLine = L.polyline(ROUTE, {
+  color: css("--route"), weight: 5, opacity: 0.78, lineCap: "round", lineJoin: "round", interactive: false
+}).addTo(map);
+
+const legend = L.control({ position: "bottomleft" });
+legend.onAdd = function () {
+  const el = L.DomUtil.create("div", "map-legend");
+  el.setAttribute("aria-label", "Map legend");
+  el.innerHTML = '<div class="legend-row"><span class="legend-line"></span>Suggested walk</div><div class="legend-row"><span class="legend-dot walk"></span>Tour stop</div><div class="legend-row"><span class="legend-dot food"></span>Food option</div>';
+  L.DomEvent.disableClickPropagation(el);
+  return el;
+};
+legend.addTo(map);
+
+const tourStops = PLACES.filter(p => p.cat === "walk");
+const waypoints = tourStops.slice(1, -1).map(p => encodeURIComponent(p.q)).join("%7C");
+const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(tourStops[0].q)}&destination=${encodeURIComponent(tourStops[tourStops.length - 1].q)}&waypoints=${waypoints}&travelmode=walking`;
+document.getElementById("route-directions").href = directionsUrl;
+
+const markers = new Map();
+const active = { walk: true, food: true };
+const listsEl = document.getElementById("lists");
+const searchEl = document.getElementById("search");
+const emptyEl = document.getElementById("empty");
+const categoryName = { walk: "walking tour stop", food: "food option" };
+
+REGIONS.forEach(region => {
+  const section = document.createElement("section");
+  section.className = "stop-group";
+  const heading = document.createElement("h2");
+  heading.textContent = region.title;
+  const note = document.createElement("p");
+  note.className = "region-note";
+  note.textContent = region.note;
+  const ul = document.createElement("ul");
+
+  PLACES.filter(p => p.group === region.id).forEach(p => {
+    const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.q)}`;
+    const markerLabel = p.cat === "walk" ? String(p.order) : "+";
+    const marker = L.marker([p.lat, p.lng], {
+      icon: L.divIcon({
+        className: "map-pin-icon",
+        html: `<span class="pin ${p.cat}" aria-label="${esc(p.name)}">${markerLabel}</span>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        popupAnchor: [0, -17]
+      }),
+      title: p.name,
+      alt: p.name
+    }).addTo(map).bindPopup(
+      `<strong>${esc(p.name)}</strong><br><span class="popup-address">${esc(p.address)}</span><br>${esc(p.blurb)}<br><a href="${mapsLink}" target="_blank" rel="noopener">Open in Google Maps ↗</a>`
+    );
+
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.className = "item";
+    btn.dataset.cat = p.cat;
+    btn.innerHTML = `<span class="item-marker ${p.cat}" aria-hidden="true">${markerLabel}</span><span class="item-copy"><span class="item-heading"><span class="name">${esc(p.name)}</span><span class="dist">${esc(p.duration)}</span></span><span class="address">${esc(p.address)}</span><span class="blurb">${esc(p.blurb)}</span></span>`;
+    btn.addEventListener("click", () => {
+      map.flyTo([p.lat, p.lng], 16, { duration: 0.75 });
+      marker.openPopup();
+      if (window.innerWidth <= 760) window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    li.appendChild(btn);
+    ul.appendChild(li);
+    markers.set(btn, {
+      marker,
+      cat: p.cat,
+      text: `${p.name} ${p.address} ${p.blurb} ${p.duration} ${categoryName[p.cat]}`.toLowerCase()
+    });
+  });
+
+  section.append(heading, note, ul);
+  listsEl.appendChild(section);
+  region.section = section;
+  region.heading = heading;
+  region.noteEl = note;
+  region.ul = ul;
+});
+
+function applyFilters() {
+  const query = searchEl.value.trim().toLowerCase();
+  let visibleCount = 0;
+  let visibleWalkCount = 0;
+
+  markers.forEach(({ marker, cat, text }, btn) => {
+    const show = active[cat] && (!query || text.includes(query));
+    btn.hidden = !show;
+    btn.parentElement.hidden = !show;
+    if (show) {
+      marker.addTo(map);
+      visibleCount += 1;
+      if (cat === "walk") visibleWalkCount += 1;
+    } else {
+      marker.remove();
+    }
+  });
+
+  REGIONS.forEach(region => {
+    const any = Array.from(region.ul.children).some(li => !li.hidden);
+    region.section.hidden = !any;
+  });
+  emptyEl.hidden = visibleCount > 0;
+  if (active.walk && visibleWalkCount > 0) routeLine.addTo(map); else routeLine.remove();
+}
+
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const cat = chip.dataset.cat;
+    active[cat] = !active[cat];
+    chip.setAttribute("aria-pressed", String(active[cat]));
+    applyFilters();
+  });
+});
+searchEl.addEventListener("input", applyFilters);
+
+const allBounds = L.latLngBounds(PLACES.map(p => [p.lat, p.lng]));
+map.fitBounds(allBounds, { padding: [42, 42], maxZoom: 16 });
+window.addEventListener("resize", () => map.invalidateSize());
+window.setTimeout(() => map.invalidateSize(), 100);
+</script>
+</body>
+</html>
